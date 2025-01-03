@@ -1,0 +1,84 @@
+name: Build and Publish
+
+on:
+  push:
+    tags:
+      - v*
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0'
+
+      - name: Restore dependencies
+        run: dotnet restore ./Secrets-Exporter/Secrets-Exporter.csproj
+
+      - name: Publish single file for Windows
+        run: |
+          dotnet publish ./Secrets-Exporter/Secrets-Exporter.csproj \
+          -c Release \
+          -r win-x64 \
+          --self-contained true \
+          /p:PublishSingleFile=true \
+          /p:IncludeAllContentForSelfExtract=true \
+          /p:TrimMode=Link \
+          --output ./publish/windows
+
+      - name: Publish single file for Linux
+        run: |
+          dotnet publish ./Secrets-Exporter/Secrets-Exporter.csproj \
+          -c Release \
+          -r linux-x64 \
+          --self-contained true \
+          /p:PublishSingleFile=true \
+          /p:IncludeAllContentForSelfExtract=true \
+          /p:TrimMode=Link \
+          --output ./publish/linux
+
+      - uses: actions/create-release@v1
+        id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+
+      - name: Archive windows files
+        run: |
+          cd publish/windows
+          rm -f ./*.pdb
+          zip -r windows-build.zip *
+
+      - name: Archive linux files
+        run: |
+          cd publish/linux
+          rm -f ./*.pdb
+          zip -r linux-build.zip *
+
+      - name: Publish windows artifacts to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: publish/windows/windows-build.zip
+          asset_name: windows-build.zip
+          asset_content_type: application/zip
+
+      - name: Publish linux artifacts to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: publish/linux/linux-build.zip
+          asset_name: linux-build.zip
+          asset_content_type: application/zip
