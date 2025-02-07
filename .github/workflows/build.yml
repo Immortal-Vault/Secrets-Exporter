@@ -60,6 +60,7 @@ jobs:
       - name: Archive linux files
         run: |
           cd publish/linux
+          chmod +x Secrets-Exporter
           rm -f ./*.pdb
           zip -r immortal-vault-secret-exporter-linux.zip *
 
